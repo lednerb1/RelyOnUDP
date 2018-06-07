@@ -79,22 +79,33 @@ int TCP_PW::start(int argc, char const *argv[]){
         this -> S_address.sin_addr.s_addr = INADDR_ANY;
         this -> S_address.sin_port = htons(this -> PORT);
 
-        // Forcefully attaching socket to the port 8080
+        // Forcefully attaching socket to the port
         if (bind(this -> server_fd, (struct sockaddr *)&(this -> S_address), sizeof(this -> S_address)) < 0){
             perror("bind failed");
             return -1;
         }
     } else {
-        if ((this -> sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
+        if ((this -> sock = socket(AF_INET, SOCK_DGRAM, 0)) <= 0){
             printf("\n Socket creation error \n");
             return -1;
         }
 
-        memset(&(this -> serv_addr), '0', sizeof(this -> serv_addr));
+        // memset(&(this -> serv_addr), '0', sizeof(this -> serv_addr));
 
         this -> serv_addr.sin_family = AF_INET;
         this -> serv_addr.sin_addr.s_addr = inet_addr(this -> IP);
+        this -> serv_addr.sin_port = htons(0);
+
+        //ABSTRATO PRA CARAI
+
+        // Forcefully attaching socket to the port
+        if (bind(this -> sock, (struct sockaddr *)&(this -> serv_addr), sizeof(this -> serv_addr)) < 0){
+            perror("bind failed");
+            return -1;
+        }
+
         this -> serv_addr.sin_port = htons(this -> PORT);
+
     }
 }
 
@@ -157,7 +168,7 @@ void TCP_PW::listen(){
                 printf("Recebido ACK\n");
                 /* Se for um ACK para confirmar a conexão */
                 if(hand){
-                    printf("Conexao estabelecidade\n");
+                    printf("Conexao estabelecida\n");
                     hand = 0;
                 } else if(disc){ /* Se for um ACK para confirmar o encerramento da conexão */
                     printf("Conexao encerrada\n");
