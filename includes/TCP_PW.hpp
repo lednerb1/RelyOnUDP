@@ -21,23 +21,28 @@
 const int TCP_PW_CLIENT = 1;
 const int TCP_PW_SERVER = 2;
 
+extern int MTU;
+
 /*
     Pacote que sera enviado pelo Servidor e Cliente
 */
 struct Pacote {
 private:
-    char IP_origem[20], IP_destino[20];
+    struct in_addr IP_origem, IP_destino;
     int PORT_origem, PORT_destino;
     int n_ACK, n_SEQ;
     int flag;
-    char dados[100];
+    char dados[1500];
 public:
     Pacote();
-    Pacote(char const * IP_origem, char const * IP_destino, int PORT_origem, int PORT_destino,
+    Pacote(struct in_addr IP_origem, struct in_addr IP_destino, int PORT_origem, int PORT_destino,
            int n_ACK, int n_SEQ, int flag, char const  *dados);
 
     char * getDados();
-    char * getIpOrigem();
+    struct in_addr getIpOrigem();
+    struct in_addr getIpDest();
+    int getPortOrigem();
+    int getPortDest();
     int getFlag();
 };
 
@@ -73,9 +78,8 @@ private:
 public:
     TCP_PW(int tipo);
 
-    void handShake();
-    void disconnect();
     std::pair<std::pair<int, int>, std::pair<Pacote *, struct sockaddr_in> > recvUDP();
+    int sendA(char const *text, int flag, struct sockaddr_in dest);
 
     //Servidor
     int start(int argc, char const *argv[]);
@@ -83,9 +87,12 @@ public:
 
     //Cliente
     int connectA();
-    int sendA(char const *text, int flag, struct sockaddr_in dest);
+    void handShake();
+    void disconnect();
+    void sendMsg(char const *text);
 
     struct sockaddr_in getServerAddr();
+    struct sockaddr_in *getServerAddrPtr();
     int getSock();
 };
 

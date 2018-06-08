@@ -9,6 +9,13 @@ int main(int argc, char const *argv[]) {
     tcp -> start(argc, argv);
     tcp -> connectA();
 
+    for(int i = 0; i < argc; i++){
+        if(strcmp(argv[i], "-m") == 0){
+            tcp -> sendMsg(argv[i + 1]);
+            break;
+        }
+    }
+
     tcp -> disconnect();
 
     return 0;
