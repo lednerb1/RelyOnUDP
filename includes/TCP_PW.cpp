@@ -17,12 +17,11 @@ Pacote::Pacote(struct in_addr IP_origem, struct in_addr IP_destino, int PORT_ori
     this -> n_ACK = n_ACK;
     this -> n_SEQ = n_SEQ;
     this -> flag = flag;
-    //strcpy(this -> dados, dados);
-    this -> dados = std::string(dados);
+    strcpy(this -> dados, dados);
     // printf("Pacotin criado com a msg: %s\n", this -> dados);
 }
 
-std::string Pacote::getDados(){
+char * Pacote::getDados(){
     return this -> dados;
 }
 

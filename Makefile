@@ -1,5 +1,5 @@
 CC = g++
-LINKS = -std=c++11 -O2
+LINKS = -std=c++11 -g
 INCLUDES = includes/TCP_PW.cpp
 
 all:

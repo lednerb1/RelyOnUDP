@@ -33,13 +33,13 @@ private:
     int PORT_origem, PORT_destino;
     int n_ACK, n_SEQ;
     int flag;
-    std::string dados;
+    char dados[1500];
 public:
     Pacote();
     Pacote(struct in_addr IP_origem, struct in_addr IP_destino, int PORT_origem, int PORT_destino,
            int n_ACK, int n_SEQ, int flag, char const  *dados);
 
-    std::string getDados();
+    char * string getDados();
     struct in_addr getIpOrigem();
     struct in_addr getIpDest();
     int getPortOrigem();
