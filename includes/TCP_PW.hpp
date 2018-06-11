@@ -39,7 +39,7 @@ public:
     Pacote(struct in_addr IP_origem, struct in_addr IP_destino, int PORT_origem, int PORT_destino,
            int n_ACK, int n_SEQ, int flag, char const  *dados);
 
-    char * string getDados();
+    char * getDados();
     struct in_addr getIpOrigem();
     struct in_addr getIpDest();
     int getPortOrigem();

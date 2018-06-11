@@ -235,7 +235,7 @@ void TCP_PW::listen(){
                     printf("Conexao encerrada\n");
                     disc = 0;
                 } else {
-                    printf("Mensagem recebida: %s\n", ret.buff -> getDados().c_str());
+                    printf("Mensagem recebida: %s\n", ret.buff -> getDados());
                     sendA("", ACK, ret.peer_addr);
                     printf("Enviando um ACK\n");
                 }
