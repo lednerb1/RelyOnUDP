@@ -17,11 +17,12 @@ Pacote::Pacote(struct in_addr IP_origem, struct in_addr IP_destino, int PORT_ori
     this -> n_ACK = n_ACK;
     this -> n_SEQ = n_SEQ;
     this -> flag = flag;
-    strcpy(this -> dados, dados);
+    //strcpy(this -> dados, dados);
+    this -> dados = std::string(dados);
     // printf("Pacotin criado com a msg: %s\n", this -> dados);
 }
 
-char * Pacote::getDados(){
+std::string Pacote::getDados(){
     return this -> dados;
 }
 
@@ -170,17 +171,13 @@ int TCP_PW::sendA(char const *text, int flag, sockaddr_in dest){
     } else {
         pct = new Pacote(this -> S_address.sin_addr, dest.sin_addr, this -> S_address.sin_port, dest.sin_port, this -> n_ACK, this -> n_SEQ, flag, text);
     }
-    // std::cout << "Enviando para " << pct -> getIpDest().s_addr << " a partir de " << pct -> getIpOrigem().s_addr << " para a porta " << ntohs(pct -> getPortDest()) << " a partir da porta " << ntohs(pct -> getPortOrigem()) << std::endl;
-    if(flag & SYN || flag & FIN){
-		this -> n_SEQ++;
-	}
+    //std::cout << "Enviando para " << pct -> getIpDest().s_addr << " a partir de " << pct -> getIpOrigem().s_addr << " para a porta " << ntohs(pct -> getPortDest()) << " a partir da porta " << ntohs(pct -> getPortOrigem()) << std::endl;
     sendto(this -> getSock(), pct, sizeof(Pacote), 0, (sockaddr *)&dest, sizeof(dest));
 }
 
 void TCP_PW::sendMsg(char const *text){
     Pacote *pct = new Pacote(this -> C_address.sin_addr, this -> getServerAddr().sin_addr, this -> C_address.sin_port,
 							 this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, text);
-    this -> n_SEQ++;
     sendto(this -> getSock(), pct, sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
 }
 
@@ -212,8 +209,9 @@ void TCP_PW::listen(){
 				this -> n_SEQ = 0;
 				this -> n_ACK = 0;
                 printf("Recebido SYN\n");
-                sendA("", ACK | SYN, ret.peer_addr);
+                this -> n_ACK++;
                 printf("Enviando ACK | SYN\n" );
+                sendA("", ACK | SYN, ret.peer_addr);
                 hand = 1;
                 continue;
             }
@@ -238,7 +236,7 @@ void TCP_PW::listen(){
                     printf("Conexao encerrada\n");
                     disc = 0;
                 } else {
-                    printf("Mensagem recebida: %s\n", ret.buff -> getDados());
+                    printf("Mensagem recebida: %s\n", ret.buff -> getDados().c_str());
                     sendA("", ACK, ret.peer_addr);
                     printf("Enviando um ACK\n");
                 }

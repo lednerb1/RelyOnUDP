@@ -33,13 +33,13 @@ private:
     int PORT_origem, PORT_destino;
     int n_ACK, n_SEQ;
     int flag;
-    char dados[1500];
+    std::string dados;
 public:
     Pacote();
     Pacote(struct in_addr IP_origem, struct in_addr IP_destino, int PORT_origem, int PORT_destino,
            int n_ACK, int n_SEQ, int flag, char const  *dados);
 
-    char * getDados();
+    std::string getDados();
     struct in_addr getIpOrigem();
     struct in_addr getIpDest();
     int getPortOrigem();
@@ -70,9 +70,9 @@ private:
     int sock = 0, C_valread;
     struct sockaddr_in serv_addr;
     char IP[20];
-	
+
 	int n_SEQ, n_ACK;
-	
+
     /* Servidor */
     int server_fd, new_socket, S_valread;
     struct sockaddr_in S_address;
@@ -80,9 +80,9 @@ private:
     int addrlen;
 public:
     TCP_PW(int tipo);
-	
+
 	int timeHandler(clock_t s, clock_t f);
-	
+
     std::pair<std::pair<int, int>, std::pair<Pacote *, struct sockaddr_in> > recvUDP();
     int sendA(char const *text, int flag, struct sockaddr_in dest);
 
