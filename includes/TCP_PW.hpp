@@ -22,6 +22,7 @@ const int TCP_PW_CLIENT = 1;
 const int TCP_PW_SERVER = 2;
 
 extern int MTU;
+extern double timeout;
 
 /*
     Pacote que sera enviado pelo Servidor e Cliente
@@ -69,7 +70,9 @@ private:
     int sock = 0, C_valread;
     struct sockaddr_in serv_addr;
     char IP[20];
-
+	
+	int n_SEQ, n_ACK;
+	
     /* Servidor */
     int server_fd, new_socket, S_valread;
     struct sockaddr_in S_address;
@@ -77,7 +80,9 @@ private:
     int addrlen;
 public:
     TCP_PW(int tipo);
-
+	
+	int timeHandler(clock_t s, clock_t f);
+	
     std::pair<std::pair<int, int>, std::pair<Pacote *, struct sockaddr_in> > recvUDP();
     int sendA(char const *text, int flag, struct sockaddr_in dest);
 
