@@ -15,8 +15,7 @@ int main(int argc, char const *argv[]) {
             break;
         }
     }
-	tcp -> sendMsg("Mandando msg mesmo");
-	
+
     tcp -> disconnect();
 
     return 0;

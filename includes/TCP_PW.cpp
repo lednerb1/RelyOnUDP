@@ -1,7 +1,7 @@
 #include "TCP_PW.hpp"
 
 int MTU = 1500;
-double timeout = 0.05;
+double timeout = 0.2;
 
 Pacote::Pacote(){
     struct in_addr a;
@@ -59,10 +59,9 @@ int TCP_PW::timeHandler(clock_t s, clock_t f){
 void TCP_PW::handShake(){
 	printf("Enviando SYN\n");
     sendA("", SYN, this -> getServerAddr());
-    int cnt = 0;
     clock_t start = clock();
     while(1){
-        InfoRetRecv ret = InfoRetRecv(recvUDP());        
+        InfoRetRecv ret = InfoRetRecv(recvUDP());
         if(ret.s == 0){
             if(ret.buff -> getFlag() & ACK && ret.buff -> getFlag() & SYN){
                 printf("Recebido ACK | SYN\n");
@@ -80,8 +79,8 @@ void TCP_PW::handShake(){
 }
 
 void TCP_PW::disconnect(){
-    sendA("", FIN, this -> getServerAddr());
     printf("Enviando FIN\n");
+    sendA("", FIN, this -> getServerAddr());
     clock_t start = clock();
     while(1){
         InfoRetRecv ret = InfoRetRecv(recvUDP());
@@ -94,7 +93,7 @@ void TCP_PW::disconnect(){
             }
         }
         if(timeHandler(start, clock())){
-			printf("Enviando FIN\n");
+            printf("Enviando FIN\n");
 			sendA("", FIN, this -> getServerAddr());
 			start = clock();
 		}
@@ -110,7 +109,7 @@ int TCP_PW::start(int argc, char const *argv[]){
         } else if(strcmp(argv[i], "-MTU") == 0){
 			MTU = atoi(argv[i + 1]);
 		}
-    }	
+    }
 
     if(this -> tipo == TCP_PW_SERVER){
         if ((this -> sock = socket(AF_INET, SOCK_DGRAM, 0)) == 0){
@@ -153,7 +152,7 @@ int TCP_PW::connectA(){
         printf("\nInvalid address/ Address not supported \n");
         return -1;
     }
-	
+
 	this -> n_ACK = 0;
 	this -> n_SEQ = 0;
     if (connect(this -> sock, (struct sockaddr *)&(this -> serv_addr), sizeof(this -> serv_addr)) < 0){
@@ -181,7 +180,7 @@ int TCP_PW::sendA(char const *text, int flag, sockaddr_in dest){
 void TCP_PW::sendMsg(char const *text){
     Pacote *pct = new Pacote(this -> C_address.sin_addr, this -> getServerAddr().sin_addr, this -> C_address.sin_port,
 							 this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, text);
-    this -> n_SEQ += (sizeof(
+    this -> n_SEQ++;
     sendto(this -> getSock(), pct, sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
 }
 
