@@ -12,16 +12,18 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 #include <utility>
 
 #define ACK (1 << 0)
 #define SYN (1 << 1)
 #define FIN (1 << 2)
+#define COF (1 << 3)
 
 const int TCP_PW_CLIENT = 1;
 const int TCP_PW_SERVER = 2;
 
-extern int MTU;
+extern int MTU, MSS;
 extern double timeout;
 
 /*
@@ -32,19 +34,24 @@ private:
     struct in_addr IP_origem, IP_destino;
     int PORT_origem, PORT_destino;
     int n_ACK, n_SEQ;
-    int flag;
+    unsigned short flag;
     char dados[1500];
 public:
     Pacote();
     Pacote(struct in_addr IP_origem, struct in_addr IP_destino, int PORT_origem, int PORT_destino,
-           int n_ACK, int n_SEQ, int flag, char const  *dados);
+           int n_ACK, int n_SEQ, unsigned short flag, char const  *dados);
 
     char * getDados();
     struct in_addr getIpOrigem();
     struct in_addr getIpDest();
     int getPortOrigem();
     int getPortDest();
-    int getFlag();
+    unsigned short getFlag();
+    int getACK();
+    void setACK(int n_ACK);
+    int getSEQ();
+    void setSEQ(int n_SEQ);
+
 };
 
 struct InfoRetRecv {
@@ -65,12 +72,13 @@ private:
     int tipo;
     int PORT;
 
+    int handC;
+
     /* Cliente */
     struct sockaddr_in C_address;
     int sock = 0, C_valread;
     struct sockaddr_in serv_addr;
     char IP[20];
-
 	int n_SEQ, n_ACK;
 
     /* Servidor */
@@ -84,7 +92,7 @@ public:
 	int timeHandler(clock_t s, clock_t f);
 
     std::pair<std::pair<int, int>, std::pair<Pacote *, struct sockaddr_in> > recvUDP();
-    int sendA(char const *text, int flag, struct sockaddr_in dest);
+    int sendA(unsigned short flag, struct sockaddr_in dest);
 
     //Servidor
     int start(int argc, char const *argv[]);
