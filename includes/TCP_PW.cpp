@@ -1,5 +1,5 @@
 #include "TCP_PW.hpp"
-
+// #include "TCP_FN.hpp"
 /*
     14/06 - 00:30 (Felipe Weiss)
         1. Criado um menuzinho para o cliente poder simular as etapas de envio parte a parte
@@ -113,10 +113,10 @@ void TCP_PW::handShake(){
             }
         }
         if(timeHandler(start, clock())){
-			printf("--> Enviando SYN\n");
-			sendA(SYN, this -> getServerAddr());
-			start = clock();
-		}
+    		    printf("--> Enviando SYN\n");
+    		    sendA(SYN, this -> getServerAddr());
+    		    start = clock();
+		    }
     }
     printf("- Conectado ao servidor!\n");
     this -> handC = 1;
@@ -178,8 +178,8 @@ int TCP_PW::start(int argc, char const *argv[]){
         } else if(strcmp(argv[i], "-p") == 0){
             this -> PORT = atoi(argv[i + 1]);
         } else if(strcmp(argv[i], "-MTU") == 0){
-			MTU = atoi(argv[i + 1]);
-		}
+			      MTU = atoi(argv[i + 1]);
+		    }
     }
 
     if(this -> tipo == TCP_PW_SERVER){
@@ -252,21 +252,46 @@ void TCP_PW::sendMsg(char const *text){
             p -> setSEQ(this -> n_SEQ);
             //Pacote *pct = new Pacote(this -> C_address.sin_addr, this -> getServerAddr().sin_addr, this -> C_address.sin_port,
         	//						 this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, text);
-            printf("--> Enviando mensagem!\n");
+            printf("--> Enviando mensagem! -> Numero de sequencia: %d\n", this->n_SEQ);
             sendto(this -> getSock(), p, sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
             clock_t start = clock();
+            int duped_acks=-1;
             while(1){
                 InfoRetRecv ret = InfoRetRecv(recvUDP());
                 if(ret.s == 0){
                     if(ret.buff -> getFlag() & ACK && ret.buff -> getACK() == this -> n_SEQ){
-                        printf("<-- Recebido ACK\n");
+                        printf("<-- Recebido ACK %d\n", ret.buff->getACK());
                         break;
+                    }else{
+                        if(ret.buff -> getFlag() & ACK && ret.buff -> getACK() != this -> n_SEQ){
+                            printf("<-- ACK inesperado. Provavel reordenacao de pacotes?\n");
+                            printf("<-- ACK esperado: %d\nACK recebido: %d\n", this->n_SEQ, ret.buff->getACK());
+                            // duped_acks++;
+                            if(ret.buff->getACK() >= this->n_SEQ){
+                                printf("Pacote enviado ja recebido, avancar janela\n");
+                                break;
+                            /*O maior chuncho da historia*/
+                            }else if(ret.buff->getACK() < this->n_SEQ){
+                                duped_acks = duped_acks + 1;
+                                if(duped_acks==3){
+                                    duped_acks=-1;
+                                    printf("Servidor perdeu um pacote, retroceder janela e reenviar\n");
+                                    for(Pacote *q : pacotes){
+                                        if(q->getSEQ() == ret.buff->getACK()){
+                                            p = q;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+
                 if(timeHandler(start, clock())){
                     printf("--> Enviando mensagem!\n");
-        			sendto(this -> getSock(), p, sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
-        			start = clock();
+              			sendto(this -> getSock(), p, sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
+              			start = clock();
                 }
             }
             this -> n_SEQ++;
@@ -304,8 +329,8 @@ void TCP_PW::listen(){
         if(ret.s == 0){
             /* HANDSHAKE */
             if(ret.buff -> getFlag() & SYN){
-				this -> n_SEQ = 0;
-				this -> n_ACK = 1;
+        				this -> n_SEQ = 0;
+        				this -> n_ACK = 1;
                 printf("<-- Recebido SYN\n");
                 printf("--> Enviando ACK | SYN\n");
                 sendA(ACK | SYN, ret.peer_addr);
@@ -346,6 +371,32 @@ void TCP_PW::listen(){
                         printf("\n--> Enviando um ACK\n");
                         this -> n_ACK++;
                     }
+                    /*
+                    // E se ret.buff -> getSEQ() != this -> n_ACK ?
+                    // Temos aqui um problema de Reordenacao de pacotes
+                    // Precisamos reenviar o ACK atual pro Cliente para
+                    // que ele possa nos enviar o pacote correto.
+                    // Caso contrário entraremos em um loop infinito de
+                    // timeout e reenvio de pacote com o mesmo SEQ.
+                    // Tentar ver o que é possível fazer agora.
+                    */
+                    else{
+                      printf("Numero de Sequencia incorreto\n");
+                      printf("Esperado: %d\nRecebido: %d\n", this->n_ACK, ret.buff->getSEQ());
+                      printf("Retornando ACK atual %d para cliente...\n", this->n_ACK);
+                      sendA(ACK, ret.peer_addr);
+                    }
+                    /*
+                    // Bom, temos um belo de um chuncho aqui, se o cara
+                    // enviou um pacote e nos recebemos, aumentamos o ack,
+                    // sendo assim, caso o nro de sequencia esteja incorreto
+                    // enviamos o nosso atual pra ele.
+                    // No metodo void TCP_PW::sendMsg(char const *text);
+                    // O cliente verifica que o ACK que esta enviando esta
+                    // Atrasado em relacao ao ACK do servidor. E avanca a janela.
+                    // Funciona, mas e se o nosso ACK estiver atrasado.
+                    */
+
                 }
             }
         }
