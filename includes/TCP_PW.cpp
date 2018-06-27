@@ -241,60 +241,76 @@ void TCP_PW::sendMsg(char const *text){
         for(int i = 0; i < strlen(text); i++){
             if(i && i % MSS == 0){
                 pacotes.push_back(new Pacote(this -> C_address.sin_addr, this -> getServerAddr().sin_addr, this -> C_address.sin_port,
-            							     this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, txt.c_str()));
+                                             this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, txt.c_str()));
                 txt = "";
             }
             txt += text[i];
         }
         pacotes.push_back(new Pacote(this -> C_address.sin_addr, this -> getServerAddr().sin_addr, this -> C_address.sin_port,
-                                     this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, txt.c_str()));
-        for(Pacote *p : pacotes){
-            p -> setSEQ(this -> n_SEQ);
-            //Pacote *pct = new Pacote(this -> C_address.sin_addr, this -> getServerAddr().sin_addr, this -> C_address.sin_port,
-        	//						 this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, text);
-            printf("--> Enviando mensagem! -> Numero de sequencia: %d\n", this->n_SEQ);
-            sendto(this -> getSock(), p, sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
+        this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, txt.c_str()));
+
+        int interval = 2;
+        std::vector<Pacote *>::iterator head, tail;
+        head = pacotes.begin();
+        tail = pacotes.begin()+interval;
+
+        while(head != pacotes.end()){
+            std::vector<int> ACKs;
+            for(std::vector<Pacote *>::iterator set = head; set!=tail; set++){
+                ACKs.push_back(this->n_SEQ);
+                (*set)->setSEQ(this->n_SEQ++);
+            }
+
+            int package_lost=0;
+            int duped_acks=0;
+            int prev_ack=0;
+
+            for(std::vector<Pacote *>::iterator set = head; set!=tail; set++){
+                sendto(this -> getSock(), (*set), sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
+            }
+
             clock_t start = clock();
-            int duped_acks=-1;
-            while(1){
+
+            while(!ACKs.empty()){
+                // std::cout << "preso" << '\n';
                 InfoRetRecv ret = InfoRetRecv(recvUDP());
+                // printf("%d", ret);
                 if(ret.s == 0){
-                    if(ret.buff -> getFlag() & ACK && ret.buff -> getACK() == this -> n_SEQ){
-                        printf("<-- Recebido ACK %d\n", ret.buff->getACK());
-                        break;
-                    }else{
-                        if(ret.buff -> getFlag() & ACK && ret.buff -> getACK() != this -> n_SEQ){
-                            printf("<-- ACK inesperado. Provavel reordenacao de pacotes?\n");
-                            printf("<-- ACK esperado: %d\nACK recebido: %d\n", this->n_SEQ, ret.buff->getACK());
-                            // duped_acks++;
-                            if(ret.buff->getACK() >= this->n_SEQ){
-                                printf("Pacote enviado ja recebido, avancar janela\n");
+                    if(ret.buff -> getFlag() & ACK){
+                        bool erased = false;
+                        for(std::vector<int>::iterator it = ACKs.begin(); it != ACKs.end(); it++){
+                            if(ret.buff->getACK() == (*it)){
+                                std::cout << "apagou" << '\n';
+                                ACKs.erase(it);
+                                erased = true;
+                                duped_acks=0;
+                                prev_ack = ret.buff->getACK();
                                 break;
-                            /*O maior chuncho da historia*/
-                            }else if(ret.buff->getACK() < this->n_SEQ){
-                                duped_acks = duped_acks + 1;
-                                if(duped_acks==3){
-                                    duped_acks=-1;
-                                    printf("Servidor perdeu um pacote, retroceder janela e reenviar\n");
-                                    for(Pacote *q : pacotes){
-                                        if(q->getSEQ() == ret.buff->getACK()){
-                                            p = q;
-                                            break;
-                                        }
-                                    }
-                                }
                             }
                         }
+                    if(!erased && prev_ack == ret.buff->getACK()){
+                        duped_acks++;
                     }
+
                 }
 
-                if(timeHandler(start, clock())){
-                    printf("--> Enviando mensagem!\n");
-              			sendto(this -> getSock(), p, sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
-              			start = clock();
+                    if(duped_acks >= 3){
+                        interval = 2;
+                        std::cout << "Perda de pacote, go back " << ret.buff->getACK() << '\n';
+                        head = pacotes.begin()+ret.buff->getACK();
+                        tail = head + interval;
+                        package_lost=1;
+                        break;
+                    }
+                }else{
+
                 }
             }
-            this -> n_SEQ++;
+            if(!package_lost){
+                interval = interval*=2;
+                head = tail+1;
+                tail = tail+interval;
+            }
         }
     } else {
         printf("- Ainda nao conectado ao servidor!\n");
@@ -373,7 +389,7 @@ void TCP_PW::listen(){
                     }
                     /*
                     // E se ret.buff -> getSEQ() != this -> n_ACK ?
-                    // Temos aqui um problema de Reordenacao de pacotes
+                    // Temos aqui um problema de Perda ou Reordenacao de pacotes
                     // Precisamos reenviar o ACK atual pro Cliente para
                     // que ele possa nos enviar o pacote correto.
                     // Caso contrário entraremos em um loop infinito de
