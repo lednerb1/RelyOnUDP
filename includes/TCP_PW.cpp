@@ -31,6 +31,8 @@
 int MTU = 1500;
 int MSS = 2 * MTU - sizeof(Pacote);
 double timeout = 0.1;
+int maxRep = 10;
+int totalPerda = 0;
 
 Pacote::Pacote(){
     struct in_addr a;
@@ -91,6 +93,7 @@ int TCP_PW::timeHandler(clock_t s, clock_t f){
 	double t = (f - s) * 1000.0 / CLOCKS_PER_SEC;
 	if(t > timeout){
 		printf("----Provavel perda de pacote----\n");
+        totalPerda++;
 		return 1;
 	}
 	return 0;
@@ -116,7 +119,12 @@ void TCP_PW::handShake(){
     		    printf("--> Enviando SYN\n");
     		    sendA(SYN, this -> getServerAddr());
     		    start = clock();
-		    }
+		}
+        if(totalPerda >= maxRep){
+            printf("+10 pacotes perdidos por timeout\n");
+            totalPerda = 0;
+            return;
+        }
     }
     printf("- Conectado ao servidor!\n");
     this -> handC = 1;
@@ -166,6 +174,11 @@ void TCP_PW::disconnect(){
 			sendA(FIN, this -> getServerAddr());
 			start = clock();
 		}
+        if(totalPerda >= maxRep){
+            printf("+10 pacotes perdidos por timeout\n");
+            totalPerda = 0;
+            break;
+        }
     }
     printf("- Desconectado do servidor!\n");
     this -> handC = 0;
@@ -235,6 +248,7 @@ int TCP_PW::sendA(unsigned short flag, sockaddr_in dest){
 }
 
 void TCP_PW::sendMsg(char const *text){
+    totalPerda = 0;
     if(this -> handC){
         std::vector<Pacote *> pacotes;
         std::string txt = "";
@@ -246,6 +260,7 @@ void TCP_PW::sendMsg(char const *text){
             }
             txt += text[i];
         }
+        printf("Terminou de fragmentar: %d\n", pacotes.size());
         pacotes.push_back(new Pacote(this -> C_address.sin_addr, this -> getServerAddr().sin_addr, this -> C_address.sin_port,
         this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, txt.c_str()));
 
@@ -256,11 +271,10 @@ void TCP_PW::sendMsg(char const *text){
 
         while(head != pacotes.end()){
             std::vector<int> ACKs;
-            for(std::vector<Pacote *>::iterator set = head; set!=tail; set++){
+            for(std::vector<Pacote *>::iterator set = head; set!=tail && set != pacotes.end(); set++){
                 ACKs.push_back(this->n_SEQ);
                 (*set)->setSEQ(this->n_SEQ++);
             }
-
             int package_lost=0;
             int duped_acks=0;
             int prev_ack=0;
@@ -268,7 +282,6 @@ void TCP_PW::sendMsg(char const *text){
             for(std::vector<Pacote *>::iterator set = head; set!=tail; set++){
                 sendto(this -> getSock(), (*set), sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
             }
-
             clock_t start = clock();
 
             while(!ACKs.empty()){
@@ -285,6 +298,7 @@ void TCP_PW::sendMsg(char const *text){
                                 erased = true;
                                 duped_acks=0;
                                 prev_ack = ret.buff->getACK();
+                                totalPerda = 0;
                                 break;
                             }
                         }
@@ -293,23 +307,34 @@ void TCP_PW::sendMsg(char const *text){
                     }
 
                 }
-
                     if(duped_acks >= 3){
                         interval = 2;
                         std::cout << "Perda de pacote, go back " << ret.buff->getACK() << '\n';
                         head = pacotes.begin()+ret.buff->getACK();
+                        if((tail - pacotes.begin()) + interval >= pacotes.size()){
+                            tail = pacotes.end();
+                        } else {
+                            tail = tail+interval;
+                        }
                         tail = head + interval;
                         package_lost=1;
                         break;
                     }
-                }else{
-
                 }
+            }
+            if(totalPerda >= maxRep){
+                printf("+10 pacotes perdidos por timeout\n");
+                totalPerda = 0;
+                break;
             }
             if(!package_lost){
                 interval = interval*=2;
-                head = tail+1;
-                tail = tail+interval;
+                head = tail;
+                if((tail - pacotes.begin()) + interval >= pacotes.size()){
+                    tail = pacotes.end();
+                } else {
+                    tail = tail+interval;
+                }
             }
         }
     } else {
@@ -412,7 +437,6 @@ void TCP_PW::listen(){
                     // Atrasado em relacao ao ACK do servidor. E avanca a janela.
                     // Funciona, mas e se o nosso ACK estiver atrasado.
                     */
-
                 }
             }
         }
