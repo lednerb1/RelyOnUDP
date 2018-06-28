@@ -249,22 +249,26 @@ int TCP_PW::sendA(unsigned short flag, sockaddr_in dest){
 
 void TCP_PW::sendMsg(char const *text){
     totalPerda = 0;
+    int first_p_ack = this->n_SEQ;
     if(this -> handC){
         std::vector<Pacote *> pacotes;
         std::string txt = "";
         for(int i = 0; i < strlen(text); i++){
             if(i && i % MSS == 0){
                 pacotes.push_back(new Pacote(this -> C_address.sin_addr, this -> getServerAddr().sin_addr, this -> C_address.sin_port,
-                                             this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, txt.c_str()));
+                                             this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ++, ACK, txt.c_str()));
                 txt = "";
             }
             txt += text[i];
         }
-        printf("Terminou de fragmentar: %d\n", pacotes.size());
+        printf("Terminou de fragmentar: %lu\n", pacotes.size());
         pacotes.push_back(new Pacote(this -> C_address.sin_addr, this -> getServerAddr().sin_addr, this -> C_address.sin_port,
-        this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ, ACK, txt.c_str()));
-
+        this -> getServerAddr().sin_port, this -> n_ACK, this -> n_SEQ++, ACK, txt.c_str()));
         int interval = 2;
+        if(pacotes.size()>2)
+            interval = 2;
+        else
+            interval = 1;
         std::vector<Pacote *>::iterator head, tail;
         head = pacotes.begin();
         tail = pacotes.begin()+interval;
@@ -272,12 +276,13 @@ void TCP_PW::sendMsg(char const *text){
         while(head != pacotes.end()){
             std::vector<int> ACKs;
             for(std::vector<Pacote *>::iterator set = head; set!=tail && set != pacotes.end(); set++){
-                ACKs.push_back(this->n_SEQ);
-                (*set)->setSEQ(this->n_SEQ++);
+                ACKs.push_back((*set)->getSEQ());
+                // (*set)->setSEQ(this->n_SEQ++);
             }
-            int package_lost=0;
+            int packet_lost=0;
             int duped_acks=0;
             int prev_ack=0;
+            int first_ack=ACKs[0];
 
             for(std::vector<Pacote *>::iterator set = head; set!=tail; set++){
                 sendto(this -> getSock(), (*set), sizeof(Pacote), 0, (sockaddr *)this -> getServerAddrPtr(), sizeof(this -> getServerAddr()));
@@ -289,7 +294,17 @@ void TCP_PW::sendMsg(char const *text){
                 InfoRetRecv ret = InfoRetRecv(recvUDP());
                 // printf("%d", ret);
                 if(ret.s == 0){
+                    start = clock();
+
                     if(ret.buff -> getFlag() & ACK){
+                        std::cout << ret.buff->getACK() << " :: " <<  *(ACKs.end()-1) << '\n';
+                        if(ret.buff->getACK() > *(ACKs.end()-1)){
+                            std::cout << "Servidor espera novos pacotes2" << '\n';
+                            break;
+                        }else if(ret.buff->getACK() < first_ack){
+                            std::cout << "Wut" << '\n';
+                            duped_acks=3;
+                        }
                         bool erased = false;
                         for(std::vector<int>::iterator it = ACKs.begin(); it != ACKs.end(); it++){
                             if(ret.buff->getACK() == (*it)){
@@ -302,32 +317,58 @@ void TCP_PW::sendMsg(char const *text){
                                 break;
                             }
                         }
+
+                    std::cout << "prev ack = " << prev_ack << '\n';
                     if(!erased && prev_ack == ret.buff->getACK()){
                         duped_acks++;
+                        std::cout << "DUPED ACKS" << '\n';
                     }
 
                 }
                     if(duped_acks >= 3){
                         interval = 2;
-                        std::cout << "Perda de pacote, go back " << ret.buff->getACK() << '\n';
-                        head = pacotes.begin()+ret.buff->getACK();
+                        int tryAgain=0;
+                        for(std::vector<int>::iterator it = ACKs.begin(); it != ACKs.end(); it++){
+                            if(ret.buff->getACK() > (*it)){
+                                std::cout << "Servidor espera novos pacotes1" << '\n';
+                                tryAgain=1;
+                                break;
+                            }
+                        }
+                        if(tryAgain){
+                            break;
+                        }
+                        std::cout << "Perda de pacote, go back " << ret.buff->getACK()-first_p_ack << '\n';
+                        if(ret.buff->getACK()-first_p_ack-1 > 0){
+                            head = pacotes.begin()+ret.buff->getACK()-1-first_p_ack;
+                        }else{
+                            head = pacotes.begin();
+                        } // Temos um problema, em certo momento o ACK vai ser > do que o tamanho do vetor pacotes ja que pode enviar varias vezes
+
                         if((tail - pacotes.begin()) + interval >= pacotes.size()){
                             tail = pacotes.end();
                         } else {
                             tail = tail+interval;
                         }
                         tail = head + interval;
-                        package_lost=1;
+                        packet_lost=1;
                         break;
                     }
                 }
+
+                if(timeHandler(start, clock())){
+                    printf("--> Reenviando pacotes!\n");
+                    packet_lost=1;
+                    break;
+                }
+
             }
             if(totalPerda >= maxRep){
                 printf("+10 pacotes perdidos por timeout\n");
                 totalPerda = 0;
                 break;
             }
-            if(!package_lost){
+            if(!packet_lost){
                 interval = interval*=2;
                 head = tail;
                 if((tail - pacotes.begin()) + interval >= pacotes.size()){
